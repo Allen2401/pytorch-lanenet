@@ -23,18 +23,18 @@ class Discriminative_Loss(_Loss):
         feature_dim, height, width = input.size()
         unique_labels, unique_ids, unique_counts = torch.unique(target, sorted=True, return_inverse=True,
                                                                 return_counts=True)
-        print(unique_labels)
-        print(unique_ids)
+        # print(unique_labels)
+        # print(unique_ids)
         instance_num = len(unique_labels)
-        print(instance_num)
+        # print(instance_num)
         input = input.reshape((height * width, feature_dim))
         target = target.reshape((height, width))
         index = unique_ids.reshape((height * width, 1)).repeat(1, feature_dim)
         # print(input)
         # print(index)
-        segmented_sum = torch.zeros(instance_num, feature_dim).scatter_add(0, index, input)
+        segmented_sum = torch.zeros(instance_num, feature_dim).cuda().scatter_add(0, index, input)
         mu = torch.div(segmented_sum, unique_counts.reshape((instance_num, 1)))
-        print(segmented_sum)
+        # print(segmented_sum)
 
         # step 2 : calculate the l_var
         # segmented'size instance_num * feature_dim ,counts's size :1* insatnce_num
@@ -43,20 +43,20 @@ class Discriminative_Loss(_Loss):
         distant = torch.clamp(distant - self.delta_var, min=0.)
         distant = torch.square(distant)  # the size is (height*width,1)
 
-        l_var = torch.zeros(instance_num, 1).scatter_add(0, unique_ids.reshape((height * width, 1)), distant)
+        l_var = torch.zeros(instance_num, 1).cuda().scatter_add(0, unique_ids.reshape((height * width, 1)), distant)
         l_var = torch.div(l_var, unique_counts.reshape(instance_num, 1))
         l_var = torch.mean(l_var) * self.param_var
-        print(l_var)
+        # print(l_var)
 
         # step 3 :calculate the l_dist
         mu_dim0_expand = mu.repeat(instance_num, 1)
         mu_dim1_expand = torch.repeat_interleave(mu, instance_num, dim=0)
         # mu_dim1_expand = mu_dim1_expand.reshape((instance_num*instance_num,feature_dim))
         mu_diff = mu_dim1_expand - mu_dim0_expand
-        print(mu_diff)
+        # print(mu_diff)
         # 这里有一个细节的是不需要跟自身的比较
         intermediate_tensor = torch.sum(mu_diff, dim=1, keepdim=True)  # the shape is num_instance * num_instance
-        print(intermediate_tensor)
+        # print(intermediate_tensor)
         bool_mask = (intermediate_tensor != 0).repeat(1, feature_dim)
         mu_diff_need = torch.masked_select(mu_diff, bool_mask).reshape((-1, feature_dim))  # get the 1D tensor
 
@@ -75,8 +75,8 @@ class Discriminative_Loss(_Loss):
         var_loss = torch.tensor(0,dtype =inputs.dtype,device = inputs.device)
         dist_loss = torch.tensor(0, dtype=inputs.dtype, device=inputs.device)
         reg_loss = torch.tensor(0,dtype =inputs.dtype,device = inputs.device )
-        for i in batch_size:
-            l_var,l_dist,l_reg = self._discriminative_loss_single(inputs[i],targets[i])
+        for i in range(batch_size):
+            _,l_var,l_dist,l_reg = self._discriminative_loss_single(inputs[i],targets[i])
             var_loss = var_loss + l_var
             dist_loss = dist_loss + l_dist
             reg_loss = reg_loss + l_reg

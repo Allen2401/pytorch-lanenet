@@ -21,12 +21,12 @@
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
   <component name="RecentsManager">
-    <key name="CopyFile.RECENT_KEYS">
-      <recent name="D:\PycharmProjects\lanenet_all\lanenet\utils" />
-    </key>
     <key name="MoveFile.RECENT_KEYS">
       <recent name="D:\PycharmProjects\lanenet_all\lanenet\model" />
       <recent name="D:\PycharmProjects\lanenet\model" />
+    </key>
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="D:\PycharmProjects\lanenet_all\lanenet\utils" />
     </key>
   </component>
   <component name="RunDashboard">
