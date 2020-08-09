@@ -28,10 +28,10 @@ class Lanenet(nn.Module):
         # we can write a iou in there\
         out = F.softmax(binary_result, dim=1)
         out = torch.argmax(out, dim=1).reshape((batch_size,-1))
-        TP = torch.sum(out*binary_label,dim=1) # we get the the N个TP数目
+        TP = torch.sum(out*binary_label.reshape((batch_size,-1)),dim=1) # we get the the N个TP数目
         prediction = torch.sum(out,dim=1)
-        label = torch.sum(instance_label.reshape((batch_size,-1)),dim=1)
-        iou = torch.mean(TP/(prediction+label-TP))
+        label = torch.sum(binary_label.reshape((batch_size,-1)),dim=1)
+        iou = torch.sum(TP/(prediction+label-TP))/batch_size
 
         return {'binary_result':binary_result,
                 'binary_pred':out,
