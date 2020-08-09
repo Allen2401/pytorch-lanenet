@@ -46,7 +46,7 @@ def train(epoch):
         net_output = model([image_data,binary_label,instance_label])
         net_output['total_loss'].backward()
         optimizer.step()
-        log_item = {tag:val.item for tag,val in net_output.items() if 'loss' in tag or 'iou' in tag}
+        log_item = {tag:val.item() for tag,val in net_output.items() if 'loss' in tag or 'iou' in tag}
         iter_idx = epoch *len(train_loader)+batch_idx
         logger.add_scalars('train',log_item,iter_idx)
 
@@ -108,7 +108,6 @@ if not os.path.isdir(args.log):
     os.makedirs(args.log)
 train_dataset_file = os.path.join(args.dataset,"train.txt")
 val_dataset_file = os.path.join(args.dataset,"val.txt")
-writer = SummaryWriter(args.log + f"lr_{args.lr}")
 # prepare the train and val dataset
 # Imagenet mean, std
 mean=(0.485, 0.456, 0.406)
