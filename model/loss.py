@@ -107,6 +107,8 @@ def weighted_cross_entropy_loss(binary_result,binary_label):
     print(counts)
     # if use gou,the weight has to be cuda
     weight = 1.0/torch.log(torch.div(counts,counts.sum().float())+1.02)
+    print("the weight of binary label:")
+    print(weight)
     ce = nn.CrossEntropyLoss(weight=weight)
     loss = ce(binary_result,binary_label)
     return loss

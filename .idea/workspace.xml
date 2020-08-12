@@ -3,7 +3,15 @@
   <component name="ChangeListManager">
     <list default="true" id="adf8fefc-e744-40a6-950e-b48d1a4d5e10" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dataloader/LanenetDataset.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataloader/LanenetDataset.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/model/encoder.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/encoder.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/model/enet.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/enet.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/model/loss.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/loss.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/model/model.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/model.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test.py" beforeDir="false" afterPath="$PROJECT_DIR$/test.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/train.py" beforeDir="false" afterPath="$PROJECT_DIR$/train.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/train_mutilply.py" beforeDir="false" afterPath="$PROJECT_DIR$/train_mutilply.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/util.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/util.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -23,18 +31,19 @@
   </component>
   <component name="ProjectId" id="1f2INuqsdkW6Kbk5wRu4Uj2JH8y" />
   <component name="PropertiesComponent">
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/model" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/log" />
     <property name="run.code.analysis.last.selected.profile" value="aDefault" />
     <property name="settings.editor.selected.configurable" value="settings.github" />
   </component>
   <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="D:\PycharmProjects\lanenet_all\pytorch-lanenet\log" />
+      <recent name="D:\PycharmProjects\lanenet_all\pytorch-lanenet\model" />
+      <recent name="D:\PycharmProjects\lanenet_all\lanenet\utils" />
+    </key>
     <key name="MoveFile.RECENT_KEYS">
       <recent name="D:\PycharmProjects\lanenet_all\lanenet\model" />
       <recent name="D:\PycharmProjects\lanenet\model" />
-    </key>
-    <key name="CopyFile.RECENT_KEYS">
-      <recent name="D:\PycharmProjects\lanenet_all\pytorch-lanenet\model" />
-      <recent name="D:\PycharmProjects\lanenet_all\lanenet\utils" />
     </key>
   </component>
   <component name="RunDashboard">
@@ -49,7 +58,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Python.loss2">
+  <component name="RunManager" selected="Python.test">
     <configuration name="loss (1)" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="lanenet" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -157,9 +166,9 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.test" />
         <item itemvalue="Python.loss2" />
         <item itemvalue="Python.loss (1)" />
-        <item itemvalue="Python.test" />
         <item itemvalue="Python.model" />
         <item itemvalue="Python.loss" />
       </list>

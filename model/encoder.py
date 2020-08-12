@@ -41,11 +41,3 @@ class EnetEncoder(nn.Module):
         x = self.bottleneck2_1(x)
         return x,[indices1,indices2]
 
-if __name__ == '__main__':
-    # m = models.vgg16()
-    in_channels = [3, 64, 128, 256, 512]
-    out_channels = in_channels[1:] + [512]  # [64,128,256,512,512]
-    decode_layers = ["pool5", "pool4", "pool3"]
-    decode_channels = out_channels[:-len(decode_layers) - 1:-1]
-    print(out_channels[:-3:-1])
-    print(decode_channels)
