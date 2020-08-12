@@ -38,4 +38,5 @@ class LaneDataset(Dataset):
         # label_instance_img = trans(label_instance_img)
         # img = img.reshape(img.shape[2],img.shape[0],img.shape[1])
         # label_binary_img[np.where(label_binary_img==255)]=1
-        return sample['img'],sample['binary_label'],img['instance_img']
+        # print(sample['instance_label'].type())
+        return sample['img'],sample['binary_label'],sample['instance_label']
