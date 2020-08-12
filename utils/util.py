@@ -1,6 +1,6 @@
 import os
 import torch
-from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 from datetime import datetime
 import time
 from torchvision.utils import make_grid
@@ -10,8 +10,7 @@ def save_model(save_path,model,optimizer,epoch):
     torch.save({
         'epoch':epoch,
         'model_state_dict':model.module.state_dict() if isinstance(model, torch.nn.DataParallel) else model.state_dict(),
-        'optimzer_state_dict':optimizer.state_dict()
-
+        'optimzer_state_dict':optimizer.state_dict() if optimizer is not None else None
     },save_name)
     print(f"epoch{epoch+1}:the model is saved")
 def load_model(path,model,optimizer):
@@ -22,8 +21,32 @@ def load_model(path,model,optimizer):
         model.module.load_state_dict(save_dict['model_state_dict'])
     else:
         model.load_state_dict(save_dict['model_state_dict'])
-    optimizer.load_sate_dict(save_dict['optimzer_state_dict'])
+    if save_dict['optimzer_state_dict'] is not None:
+        optimizer.load_sate_dict(save_dict['optimzer_state_dict'])
     return epoch
+
+def load_Enet_pretrained(model,filepath):
+    enet_state_dict = torch.load(filepath)['state_dict']
+    for index, name in enumerate(model.state_dict()):
+        print(name)
+        if 'encoder' in name and index < 329:
+            enetname = name.replace('encoder.', '')
+            model.state_dict()[name].copy_(enet_state_dict[enetname])
+        elif 'decoder' in name:
+            if 'transposed' in name:
+                continue
+            head = ''
+            if 'binary' in name:
+                head = 'decoder.binary_'
+            else:
+                head = 'decoder.instance_'
+            enetname = name.replace(head, '')
+            model.state_dict()[name].copy_(enet_state_dict[enetname])
+        else:
+            print("there must have something wrong!")
+            break
+    # we best to save the param
+    save_model('./save', model, optimizer=None,epoch=-1)
 
 class Logger(object):
 
@@ -43,5 +66,5 @@ class Logger(object):
             self.writer.add_scalar(flag+'/'+tag,value,step)
 
     def add_image(self,tag,tensor,step):
-        make_grid(tensor)
-        self.add_image(tag,tensor,step,dataformats="HWC")
+        tensor = make_grid(tensor,4)
+        self.writer.add_image(tag,tensor,step)

@@ -8,8 +8,7 @@ import os
 from tqdm import tqdm
 from torch.autograd import Variable
 import torch.nn.functional as F
-from torch.utils.tensorboard import SummaryWriter
-import AsciiTable
+from terminaltables import AsciiTable
 import numpy as np
 import cv2
 from utils.transforms import *
@@ -36,8 +35,8 @@ def parse_args():
 
 def train(epoch):
     model.train()
-    progressbar = tqdm(enumerate(iter(train_loader)),leave = False,total = len(train_loader))
-    for batch_idx,batch in progressbar:
+    # progressbar = tqdm(enumerate(iter(train_loader)),leave = False,total = len(train_loader))
+    for batch_idx,batch in enumerate(train_loader):
         optimizer.zero_grad()
         image_data = Variable(batch[0]).type(torch.FloatTensor).to(device)
         binary_label = Variable(batch[1]).type(torch.LongTensor).to(device)
@@ -46,20 +45,20 @@ def train(epoch):
         net_output = model([image_data,binary_label,instance_label])
         net_output['total_loss'].backward()
         optimizer.step()
-        log_item = {tag:val.item() for tag,val in net_output.items() if 'loss' in tag or 'iou' in tag}
+        log_item = {tag:val.item() for tag,val in net_output.items() if tag in ['loss','iou','num']}
         iter_idx = epoch *len(train_loader)+batch_idx
         logger.add_scalars('train',log_item,iter_idx)
 
         # print info to console
-        if batch_idx % 500 == 0:
+        if batch_idx % 2 == 0:
             table_data = [list(log_item.keys()), list(log_item.values())]
             table = AsciiTable(table_data).table
-            print(f"Epoch:{epoch+1} | batch {batch_idx+1}/{len(train_loader)} /n"+table)
+            print(f"Epoch:{epoch+1} | batch {batch_idx+1}/{len(train_loader)} \n"+table)
 
 
 
 def val(epoch):
-    print("val epoch:{}".format(epoch))
+    print("val epoch:{}".format(epoch+1))
     model.eval()
     progressbar = tqdm(enumerate(iter(val_loader)), leave=False, total=len(val_loader))
     total_loss = 0
@@ -79,22 +78,20 @@ def val(epoch):
             instance_loss +=net_output['instance_loss'].item()
             iou+=net_output['iou'].item()
             # when batch_idx=0,select the whole batch to show the binary map
-            display_imgs =[]
             if batch_idx==0:
-                binary_pred = net_output['binary_pred'].detach().cpu().numpy
-                size = list(binary_pred.shape)
+                binary_pred = net_output['binary_pred'].detach().cpu()
+                size = list(binary_pred.size())
                 size.insert(len(size),3)
-                binary = np.zeros(size)
-                binary[binary_pred==1]=[0,0,225]
-                for i in batch.size(0):
-                    display_imgs.append(cv2.cvtColor(binary[i],cv2.COLOR_BGR2RGB))
-                logger.add_image("binary_map",display_imgs)
+                binary = torch.zeros(size,dtype=torch.long)
+                binary[binary_pred==1]=[255,255,225]
+                binary = binary.permute(0,3,1,2)
+                logger.add_image("binary_map",binary,epoch)
         total_loss = total_loss/len(val_loader)
         binary_loss = binary_loss/len(val_loader)
         instance_loss = instance_loss/len(val_loader)
         iou = iou/len(val_loader)
         print(f"total_loss:{total_loss} | binary_loss:{binary_loss} | instance_loss:{instance_loss} | iou:{iou}")
-        logger.add_scalars("val",{'total_loss':total_loss,'binary_loss':binary_loss,'instance_loss':instance_loss,'iou':iou})
+        logger.add_scalars("val",{'total_loss':total_loss,'binary_loss':binary_loss,'instance_loss':instance_loss,'iou':iou},epoch)
 
 
 
@@ -125,16 +122,19 @@ if args.val:
 # step 3:load model and prepare the optimizer param
 model = Lanenet().to(device)
 optimizer = torch.optim.Adam(model.parameters(),lr=args.lr)
-start_epoch =0
+start_epoch = 0
 # if pretrained,we have to load param
 if args.pretrained:
-    print("please waiting,loading the pretrained parameters")
-    start_epoch = load_model(args.pretrained,model,optimizer)
+    if 'enet' in args.pretrained.lower():
+        load_Enet_pretrained(model,args.pretrained)
+    else:
+        print("please waiting,loading the pretrained parameters")
+        start_epoch = load_model(args.pretrained,model,optimizer)
 # train
 print("All is prepared,be willing to train!")
 for epoch in range(start_epoch,args.epoch):
     output = train(epoch)
-    if args.val and (epoch+1)%2==0:
+    if args.val: # and (epoch+1)%2==0:
         val_iou = val(epoch)
     if (epoch+1)%10==0:
         save_model(args.save,model,optimizer,epoch)
