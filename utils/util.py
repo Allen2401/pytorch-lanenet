@@ -16,7 +16,7 @@ def save_model(save_path,model,optimizer,epoch):
 def load_model(path,model,optimizer):
     assert os.path.exists(path)
     save_dict = torch.load(path)
-    epoch = save_dict['epoch'+1]
+    epoch = save_dict['epoch']+1
     if isinstance(model, torch.nn.DataParallel):
         model.module.load_state_dict(save_dict['model_state_dict'])
     else:
@@ -30,7 +30,10 @@ def load_Enet_pretrained(model,filepath):
     for index, name in enumerate(model.state_dict()):
         print(name)
         if 'encoder' in name and index < 329:
-            enetname = name.replace('encoder.', '')
+            if isinstance(model,torch.nn.DataParallel):
+                enetname = name.replace('module.encoder.', '')
+            else:
+                enetname = name.replace('encoder.', '')
             model.state_dict()[name].copy_(enet_state_dict[enetname])
         elif 'decoder' in name:
             if 'transposed' in name:
@@ -40,6 +43,8 @@ def load_Enet_pretrained(model,filepath):
                 head = 'decoder.binary_'
             else:
                 head = 'decoder.instance_'
+            if isinstance(model, torch.nn.DataParallel):
+                head = 'module.' + head
             enetname = name.replace(head, '')
             model.state_dict()[name].copy_(enet_state_dict[enetname])
         else:
@@ -47,6 +52,19 @@ def load_Enet_pretrained(model,filepath):
             break
     # we best to save the param
     save_model('./save', model, optimizer=None,epoch=-1)
+
+
+def minmax_scale(input_arr):
+    # the function is for nomalization ,and the funciton also changes the dim
+    b,c,h,w= input_arr.size()
+    input_arr = input_arr.reshape(b,c,-1)
+    max_val = torch.max(input_arr,2,keepdim=True)[0]
+    min_val = torch.min(input_arr,2,keepdim=True)[0]
+    output_arr = (input_arr - min_val)*255.0 / (max_val - min_val)
+    output_arr = output_arr.reshape(b,c,h,w)
+    return output_arr
+
+
 
 class Logger(object):
 
@@ -56,7 +74,7 @@ class Logger(object):
         if logname:
             save_name = os.path.join(path,logname)
         else:
-            timestamp = datetime.fromtimestamp(time.time()).strftime('%m%d-%H:%M')
+            timestamp = datetime.fromtimestamp(time.time()).strftime('%m%d-%H-%M')
             save_name = os.path.join(path,timestamp)
         self.writer = SummaryWriter(save_name)
 
@@ -67,4 +85,4 @@ class Logger(object):
 
     def add_image(self,tag,tensor,step):
         tensor = make_grid(tensor,4)
-        self.writer.add_image(tag,tensor,step)
+        self.writer.add_image(tag,tensor,step,dataformats='CHW')

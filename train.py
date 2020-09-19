@@ -1,3 +1,4 @@
+from __future__ import division
 import torch
 from torch.utils.data import DataLoader
 from dataloader.LanenetDataset import LaneDataset
@@ -18,17 +19,18 @@ from utils.data_augmentation import *
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset",help= " Dataset_path")
+    parser.add_argument("--dataset", default="./data/training_data/training", help=" Dataset_path")
     parser.add_argument("--save",required=False,default="./checkpoints",help="Directorty to save model checkpoint")
     parser.add_argument("--log",required=False,default="./log",help="Directory to save the log")
-    parser.add_argument("--val",require=False,type = bool,default=True)
-    parser.add_argument("--epoch",reqiured = False,type = int,default=100,help="Training epoches")
+    parser.add_argument("--val",required=False,type = bool,default=True)
+    parser.add_argument("--epoch",required = False,type = int,default=100,help="Training epoches")
     parser.add_argument("-b","--batch_size",required=False,type=int,default=16,help="use validation")
     parser.add_argument("--lr", required=False, type=float,default=0.00005, help="Learning rate")
-    parser.add_argument("--pretrained", required=False, default=None, help="pretrained model path")
+    parser.add_argument("--pretrained", required=False, default="./save/ENet", help="pretrained model path")
     # parser.add_argument("--image", default="./output", help="output image folder")
     # parser.add_argument("--net", help="backbone network")
     parser.add_argument("--json", help="post processing json")
+
     return parser.parse_args()
 
 
@@ -45,7 +47,7 @@ def train(epoch):
         net_output = model([image_data,binary_label,instance_label])
         net_output['total_loss'].backward()
         optimizer.step()
-        log_item = {tag:val.item() for tag,val in net_output.items() if tag in ['loss','iou','num']}
+        log_item = {tag:val.item() for tag,val in net_output.items() if ('loss' in tag) or ('iou' in tag) or ('num' in tag) }
         iter_idx = epoch *len(train_loader)+batch_idx
         logger.add_scalars('train',log_item,iter_idx)
 
@@ -79,13 +81,19 @@ def val(epoch):
             iou+=net_output['iou'].item()
             # when batch_idx=0,select the whole batch to show the binary map
             if batch_idx==0:
+                # get the binary result and the instance result from gpu
                 binary_pred = net_output['binary_pred'].detach().cpu()
+                instance_result = net_output['instance_result'].detach().cpu()
+                instance_result = minmax_scale(instance_result)
                 size = list(binary_pred.size())
                 size.insert(len(size),3)
+                # prepare the image
                 binary = torch.zeros(size,dtype=torch.long)
-                binary[binary_pred==1]=[255,255,225]
-                binary = binary.permute(0,3,1,2)
+                instance = instance_result[:,:3,:,:]
+                binary[binary_pred==1]= (255 * torch.ones(3,dtype = torch.long))
+                binary = binary.permute(0, 3, 1, 2)
                 logger.add_image("binary_map",binary,epoch)
+                logger.add_image("instance_map",instance,epoch)
         total_loss = total_loss/len(val_loader)
         binary_loss = binary_loss/len(val_loader)
         instance_loss = instance_loss/len(val_loader)
@@ -122,6 +130,7 @@ if args.val:
 # step 3:load model and prepare the optimizer param
 model = Lanenet().to(device)
 optimizer = torch.optim.Adam(model.parameters(),lr=args.lr)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 start_epoch = 0
 # if pretrained,we have to load param
 if args.pretrained:
@@ -134,6 +143,7 @@ if args.pretrained:
 print("All is prepared,be willing to train!")
 for epoch in range(start_epoch,args.epoch):
     output = train(epoch)
+    scheduler.step()
     if args.val: # and (epoch+1)%2==0:
         val_iou = val(epoch)
     if (epoch+1)%10==0:

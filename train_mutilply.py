@@ -15,19 +15,19 @@ from utils.data_augmentation import *
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", help=" Dataset_path")
+    parser.add_argument("--dataset", default="./data/training_data/training",help=" Dataset_path")
     parser.add_argument("--save", required=False, default="./checkpoints", help="Directorty to save model checkpoint")
     parser.add_argument("--log", required=False, default="./log", help="Directory to save the log")
-    parser.add_argument("--val", require=False, type=bool, default=True)
-    parser.add_argument("--epoch", reqiured=False, type=int, default=100, help="Training epoches")
+    parser.add_argument("--val", required=False, type=bool, default=True)
+    parser.add_argument("--epoch", required=False, type=int, default=50, help="Training epoches")
     parser.add_argument("-b", "--batch_size", required=False, type=int, default=16, help="use validation")
-    parser.add_argument("--lr", required=False, type=float, default=0.00005, help="Learning rate")
-    parser.add_argument("--pretrained", required=False, default=None, help="pretrained model path")
+    parser.add_argument("--lr", required=False, type=float, default=0.001, help="Learning rate")
+    parser.add_argument("--pretrained", required=False, default="./save/ENet", help="pretrained model path")
     # parser.add_argument("--image", default="./output", help="output image folder")
     # parser.add_argument("--net", help="backbone network")
     parser.add_argument("--json", help="post processing json")
-    return parser.parse_args()
 
+    return parser.parse_args()
 
 
 def train(epoch):
@@ -42,20 +42,21 @@ def train(epoch):
         net_output = model([image_data, binary_label, instance_label])
         ##if isinstance(model, torch.nn.DataParallel):
         batch_size = len(batch[0])
-        total_loss =  net_output['total_loss'].sum().item()
-        instance_loss = net_output['instance_loss'].sum().item()
-        binary_loss = net_output['instance_loss'].sum().item()
+        # print(net_output['total_loss'].sum().item)
+        total_loss = net_output['total_loss'].sum()
+        instance_loss = net_output['instance_loss'].sum()
+        binary_loss = net_output['instance_loss'].sum()
         iou = net_output['iou'].sum().item()/2  # the 2 is the gpu num
         prediction_num = net_output['prediction_num'].sum().item()/batch_size
         tp_num = net_output['TP_num'].sum().item()/batch_size
         total_loss.backward()
         optimizer.step()
-        log_item = {'total_loss':total_loss,'binary_loss':binary_loss,'instance_loss':instance_loss,'iou':iou,'prediction_num':prediction_num,'tp_num':tp_num}
+        log_item = {'total_loss':total_loss.item(),'binary_loss':binary_loss.item(),'instance_loss':instance_loss.item(),'iou':iou,'prediction_num':prediction_num,'tp_num':tp_num}
         iter_idx = epoch *len(train_loader)+batch_idx
         logger.add_scalars('train',log_item,iter_idx)
 
         # print info to console
-        if batch_idx % 500 == 0:
+        if batch_idx % 2 == 0:
             table_data = [list(log_item.keys()), list(log_item.values())]
             table = AsciiTable(table_data).table
             print(f"Epoch:{epoch+1} | batch {batch_idx+1}/{len(train_loader)} \n"+table)
@@ -81,23 +82,29 @@ def val(epoch):
             batch_size = len(batch[0])
             total_loss += net_output['total_loss'].sum().item()
             binary_loss += net_output['binary_loss'].sum().item()
-            instance_loss +=net_output['instance_loss'].sum().item()
-            iou+=net_output['iou'].sum().item()
+            instance_loss += net_output['instance_loss'].sum().item()
+            iou += net_output['iou'].sum().item()
             # when batch_idx=0,select the whole batch to show the binary map
             if batch_idx == 0:
+                # get the binary result and the instance result from gpu
                 binary_pred = net_output['binary_pred'].detach().cpu()
+                instance_result = net_output['instance_result'].detach().cpu()
+                instance_result = minmax_scale(instance_result)
                 size = list(binary_pred.size())
                 size.insert(len(size), 3)
+                # prepare the image
                 binary = torch.zeros(size, dtype=torch.long)
-                binary[binary_pred == 1] = [255, 255, 225]
+                instance = instance_result[:, :3, :, :]
+                binary[binary_pred == 1] = (255 * torch.ones(3, dtype=torch.long))
                 binary = binary.permute(0, 3, 1, 2)
                 logger.add_image("binary_map", binary, epoch)
+                logger.add_image("instance_map", instance, epoch)
         total_loss = total_loss/len(val_loader)
         binary_loss = binary_loss/len(val_loader)
         instance_loss = instance_loss/len(val_loader)
         iou = iou/len(val_loader)
         print(f"total_loss:{total_loss} | binary_loss:{binary_loss} | instance_loss:{instance_loss} | iou:{iou}")
-        logger.add_scalars("val",{'total_loss':total_loss,'binary_loss':binary_loss,'instance_loss':instance_loss,'iou':iou})
+        logger.add_scalars("val",{'total_loss':total_loss,'binary_loss':binary_loss,'instance_loss':instance_loss,'iou':iou},step=epoch)
 
 
 
@@ -130,15 +137,20 @@ model = Lanenet()
 model = torch.nn.DataParallel(model)
 model.to(device)
 optimizer = torch.optim.Adam(model.parameters(),lr=args.lr)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 start_epoch =0
 # if pretrained,we have to load param
 if args.pretrained:
-    print("please waiting,loading the pretrained parameters")
-    start_epoch = load_model(args.pretrained,model,optimizer)
+    if 'enet' in args.pretrained.lower():
+        load_Enet_pretrained(model, args.pretrained)
+    else:
+        print("please waiting,loading the pretrained parameters")
+        start_epoch = load_model(args.pretrained, model, optimizer)
 # train
 print("All is prepared,be willing to train!")
 for epoch in range(start_epoch,args.epoch):
     output = train(epoch)
+    scheduler.step()
     if args.val:# and (epoch+1)%2==0:
         val_iou = val(epoch)
     if (epoch+1)%10==0:

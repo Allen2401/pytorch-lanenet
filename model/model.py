@@ -1,5 +1,6 @@
-from model.encoder import *
-from model.decoder import *
+from __future__ import division
+from model.encoder2 import *
+from model.decoder2 import *
 import torch
 import torch.nn as nn
 from model.loss import *
@@ -17,8 +18,10 @@ class Lanenet(nn.Module):
         binary_label = input[1]
         instance_label = input[2]
         batch_size = forward_input.size(0)
-        encoder_result,indices = self.encoder(forward_input)
-        binary_result,instance_result = self.decoder(encoder_result,indices)
+        # encoder_result,indices = self.encoder(forward_input)
+        # binary_result,instance_result = self.decoder(encoder_result,indices)
+        encoder_result = self.encoder(forward_input)
+        binary_result,instance_result = self.decoder(* encoder_result)
         # after get the result ,we have to compute the loss
         binary_loss = weighted_cross_entropy_loss(binary_result, binary_label)
         # the instance branch loss
@@ -28,19 +31,22 @@ class Lanenet(nn.Module):
         # we can write a iou in there\
         out = F.softmax(binary_result, dim=1)
         # shape :N*h*w
-        out = torch.argmax(out, dim=1).reshape((batch_size,-1))
-        TP = torch.sum(out*binary_label.reshape((batch_size,-1)),dim=1) # we get the the N个TP数目
-        prediction = torch.sum(out,dim=1)
+        out = torch.argmax(out, dim=1)
+        out_temp = out.reshape((batch_size,-1))
+        TP = torch.sum(out_temp*binary_label.reshape((batch_size,-1)),dim=1) # we get the the N个TP数目
+        prediction = torch.sum(out_temp,dim=1)
         label = torch.sum(binary_label.reshape((batch_size,-1)),dim=1)
-        iou = torch.sum(TP/(prediction+label-TP))/batch_size
-
+        iou = torch.sum(TP * 1.0/(prediction+label-TP))/batch_size
         return {'binary_result':binary_result,
                 'binary_pred':out,
                 'instance_result':instance_result,
                 'total_loss': total_loss,
                 'binary_loss': binary_loss,
                 'instance_loss': instance_loss,
-                'iou': iou}
+                'iou': iou,
+                'prediction_num':torch.sum(prediction),
+                'TP_num':torch.sum(TP)
+        }
 
 
 # def compute_loss(decoder_result,binary_label,instance_label):
