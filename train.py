@@ -8,6 +8,8 @@ import os
 from tqdm import tqdm
 from torch.autograd import Variable
 import torch.nn.functional as F
+# rom torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 from terminaltables import AsciiTable
 import numpy as np
 import cv2
@@ -18,13 +20,13 @@ from utils.data_augmentation import *
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset",help= " Dataset_path")
+    parser.add_argument("--dataset",default="./data/tusimple/training",help= " Dataset_path")
     parser.add_argument("--save",required=False,default="./checkpoints",help="Directorty to save model checkpoint")
     parser.add_argument("--log",required=False,default="./log",help="Directory to save the log")
-    parser.add_argument("--val",require=False,type = bool,default=True)
-    parser.add_argument("--epoch",reqiured = False,type = int,default=100,help="Training epoches")
+    parser.add_argument("--val",required=False,type = bool,default=True)
+    parser.add_argument("--epoch",required = False,type = int,default=100,help="Training epoches")
     parser.add_argument("-b","--batch_size",required=False,type=int,default=16,help="use validation")
-    parser.add_argument("--lr", required=False, type=float,default=0.00005, help="Learning rate")
+    parser.add_argument("--lr", required=False, type=float,default=0.0005, help="Learning rate")
     parser.add_argument("--pretrained", required=False, default=None, help="pretrained model path")
     # parser.add_argument("--image", default="./output", help="output image folder")
     # parser.add_argument("--net", help="backbone network")
@@ -38,27 +40,28 @@ def train(epoch):
     # progressbar = tqdm(enumerate(iter(train_loader)),leave = False,total = len(train_loader))
     for batch_idx,batch in enumerate(train_loader):
         optimizer.zero_grad()
+        # input = Variable(torch.Tensor(batch)).to(device)
         image_data = Variable(batch[0]).type(torch.FloatTensor).to(device)
         binary_label = Variable(batch[1]).type(torch.LongTensor).to(device)
-        instance_label = Variable(batch[2]).type(torch.FloatTensor).to(device)
-
+        instance_label = Variable(batch[2]).type(torch.LongTensor).to(device)
+        # input = batch.to(device)
         net_output = model([image_data,binary_label,instance_label])
         net_output['total_loss'].backward()
         optimizer.step()
-        log_item = {tag:val.item() for tag,val in net_output.items() if tag in ['loss','iou','num']}
+        log_item = {tag:val.item() for tag,val in net_output.items() if 'loss' in tag or 'iou' in tag or 'num' in tag}
         iter_idx = epoch *len(train_loader)+batch_idx
         logger.add_scalars('train',log_item,iter_idx)
 
         # print info to console
-        if batch_idx % 2 == 0:
+        if batch_idx % 1== 0:
             table_data = [list(log_item.keys()), list(log_item.values())]
             table = AsciiTable(table_data).table
-            print(f"Epoch:{epoch+1} | batch {batch_idx+1}/{len(train_loader)} \n"+table)
+            print(f"Epoch:{epoch+1} | batch {batch_idx+1}/{len(train_loader)} /n"+table)
 
 
 
 def val(epoch):
-    print("val epoch:{}".format(epoch+1))
+    print("val epoch:{}".format(epoch))
     model.eval()
     progressbar = tqdm(enumerate(iter(val_loader)), leave=False, total=len(val_loader))
     total_loss = 0
@@ -69,8 +72,8 @@ def val(epoch):
         for batch_idx, batch in progressbar:
             image_data = Variable(batch[0]).type(torch.FloatTensor).to(device)
             binary_label = Variable(batch[1]).type(torch.LongTensor).to(device)
-            instance_label = Variable(batch[2]).type(torch.FloatTensor).to(device)
-
+            instance_label = Variable(batch[2]).type(torch.LongTensor).to(device)
+            # input = batch.to(device)
             net_output = model([image_data, binary_label, instance_label])
             # we have to print the loss
             total_loss += net_output['total_loss'].item()
@@ -83,8 +86,9 @@ def val(epoch):
                 size = list(binary_pred.size())
                 size.insert(len(size),3)
                 binary = torch.zeros(size,dtype=torch.long)
-                binary[binary_pred==1]=[255,255,225]
+                binary[binary_pred==1]=torch.tensor([255,255,225])
                 binary = binary.permute(0,3,1,2)
+                # print(binary.shape)
                 logger.add_image("binary_map",binary,epoch)
         total_loss = total_loss/len(val_loader)
         binary_loss = binary_loss/len(val_loader)
@@ -120,9 +124,10 @@ if args.val:
     val_loader = DataLoader(val_dataset,batch_size= args.batch_size,shuffle = True)
 
 # step 3:load model and prepare the optimizer param
+print("buliding the model!")
 model = Lanenet().to(device)
 optimizer = torch.optim.Adam(model.parameters(),lr=args.lr)
-start_epoch = 0
+start_epoch =0
 # if pretrained,we have to load param
 if args.pretrained:
     if 'enet' in args.pretrained.lower():
@@ -131,9 +136,9 @@ if args.pretrained:
         print("please waiting,loading the pretrained parameters")
         start_epoch = load_model(args.pretrained,model,optimizer)
 # train
-print("All is prepared,be willing to train!")
+print("ALl is prepared ,be willing to train~")
 for epoch in range(start_epoch,args.epoch):
-    output = train(epoch)
+    train(epoch)
     if args.val: # and (epoch+1)%2==0:
         val_iou = val(epoch)
     if (epoch+1)%10==0:

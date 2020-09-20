@@ -24,7 +24,7 @@ class Discriminative_Loss(_Loss):
         # beaceuse the version,the function hasn't 'return_counted' in pytorch1.0,so we have to change
         # unique_labels, unique_ids, unique_counts = torch.unique(target, sorted=True, return_inverse=True,
         #                                                         return_counts=True)
-        unique_labels,unique_ids = torch.unique(target, sorted=True)
+        unique_labels,unique_ids = torch.unique(target, sorted=True, return_inverse=True)
         unique_counts = [torch.sum(target==label).item() for label in unique_labels]
         unique_counts = torch.Tensor(unique_counts).cuda()
         # print(unique_labels)
@@ -55,7 +55,7 @@ class Discriminative_Loss(_Loss):
 
         # step 3 :calculate the l_dist
         mu_dim0_expand = mu.repeat(instance_num, 1)
-        mu_dim1_expand = mu.repeat(1, instance_num).reshape([instance_num*instance_num,feature_dim])
+        mu_dim1_expand = mu.repeat(1,instance_num).reshape([instance_num*instance_num,feature_dim])
         # mu_dim1_expand = mu_dim1_expand.reshape((instance_num*instance_num,feature_dim))
         mu_diff = mu_dim1_expand - mu_dim0_expand
         # print(mu_diff)
@@ -66,7 +66,7 @@ class Discriminative_Loss(_Loss):
         mu_diff_need = torch.masked_select(mu_diff, bool_mask).reshape((-1, feature_dim))  # get the 1D tensor
 
         mu_norm = torch.norm(mu_diff_need, dim=1)
-        mu_norm = torch.clamp(2 * self.delta_dist - mu_norm, min=0)
+        mu_norm = torch.clamp(self.delta_dist - mu_norm, min=0)
         mu_norm = torch.pow(mu_norm,2)
         l_dist = torch.mean(mu_norm) *self.param_dist
         # step 3: calculate the l_reg
@@ -77,11 +77,12 @@ class Discriminative_Loss(_Loss):
 
     def _discriminative_loss(self,inputs,targets):
         batch_size = inputs.size(0)
+        # loss = torch.tensor(0, dtype=inputs.dtype, device=inputs.device)
         var_loss = torch.tensor(0,dtype =inputs.dtype,device = inputs.device)
         dist_loss = torch.tensor(0, dtype=inputs.dtype, device=inputs.device)
         reg_loss = torch.tensor(0,dtype =inputs.dtype,device = inputs.device )
         for i in range(batch_size):
-            _,l_var,l_dist,l_reg = self._discriminative_loss_single(inputs[i],targets[i])
+            single_loss,l_var,l_dist,l_reg = self._discriminative_loss_single(inputs[i],targets[i])
             var_loss = var_loss + l_var
             dist_loss = dist_loss + l_dist
             reg_loss = reg_loss + l_reg
@@ -101,14 +102,10 @@ def weighted_cross_entropy_loss(binary_result,binary_label):
     size = torch.LongTensor(list(binary_label.size()))
     binary_label_plain = torch.reshape(binary_label,[torch.prod(size).item()])
     unique_class = torch.unique(binary_label_plain)
-    print(unique_class)
     counts = [torch.sum(binary_label_plain == label).item() for label in unique_class]
-    counts = torch.Tensor(counts).cuda()
-    print(counts)
-    # if use gou,the weight has to be cuda
-    weight = 1.0/torch.log(torch.div(counts,counts.sum().float())+1.02)
-    print("the weight of binary label:")
-    print(weight)
+    counts = torch.Tensor(counts)
+    # print(counts)
+    weight = (1.0/torch.log(torch.div(counts,counts.sum().float())+1.02)).cuda()
     ce = nn.CrossEntropyLoss(weight=weight)
     loss = ce(binary_result,binary_label)
     return loss
@@ -150,8 +147,7 @@ def weighted_cross_entropy_loss(binary_result,binary_label):
 # width = 3
 # height = 3
 # label = torch.LongTensor(batch_size,width,height).random_() % classnum
-# result = torch.FloatTensor(batch_size,classnum,width,height).random_()
-# loss = weighted_cross_entropy_loss(result,label)
+# weighted_cross_entropy_loss(label)
 # count = label.sum()
 # print(count)
 # print(label)

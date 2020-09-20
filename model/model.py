@@ -20,7 +20,7 @@ class Lanenet(nn.Module):
         encoder_result = self.encoder(forward_input)
         binary_result,instance_result = self.decoder(*encoder_result)
         # after get the result ,we have to compute the loss
-        binary_loss,weight = weighted_cross_entropy_loss(binary_result, binary_label)
+        binary_loss = weighted_cross_entropy_loss(binary_result, binary_label)
         # the instance branch loss
         instance_loss_fn = Discriminative_Loss(0.5, 1.5, 1.0, 1.0, 0.001)
         instance_loss = instance_loss_fn(instance_result, instance_label)
