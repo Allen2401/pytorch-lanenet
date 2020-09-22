@@ -16,13 +16,13 @@ from utils.data_augmentation import *
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", default="./data/training_data/training",help=" Dataset_path")
-    parser.add_argument("--save", required=False, default="./checkpoints", help="Directorty to save model checkpoint")
+    parser.add_argument("--save", required=False, default="./checkpoints/train-reg/", help="Directorty to save model checkpoint")
     parser.add_argument("--log", required=False, default="./log", help="Directory to save the log")
     parser.add_argument("--val", required=False, type=bool, default=True)
-    parser.add_argument("--epoch", required=False, type=int, default=50, help="Training epoches")
+    parser.add_argument("--epoch", required=False, type=int, default=100, help="Training epoches")
     parser.add_argument("-b", "--batch_size", required=False, type=int, default=16, help="use validation")
-    parser.add_argument("--lr", required=False, type=float, default=0.001, help="Learning rate")
-    parser.add_argument("--pretrained", required=False, default="./save/ENet", help="pretrained model path")
+    parser.add_argument("--lr", required=False, type=float, default=0.005, help="Learning rate")
+    parser.add_argument("--pretrained", required=False, default=None, help="pretrained model path")
     # parser.add_argument("--image", default="./output", help="output image folder")
     # parser.add_argument("--net", help="backbone network")
     parser.add_argument("--json", help="post processing json")
@@ -37,18 +37,18 @@ def train(epoch):
         optimizer.zero_grad()
         image_data = Variable(batch[0]).type(torch.FloatTensor).to(device)
         binary_label = Variable(batch[1]).type(torch.LongTensor).to(device)
-        instance_label = Variable(batch[2]).type(torch.FloatTensor).to(device)
+        instance_label = Variable(batch[2]).type(torch.LongTensor).to(device)
 
         net_output = model([image_data, binary_label, instance_label])
         ##if isinstance(model, torch.nn.DataParallel):
         batch_size = len(batch[0])
         # print(net_output['total_loss'].sum().item)
-        total_loss = net_output['total_loss'].sum()
-        instance_loss = net_output['instance_loss'].sum()
-        binary_loss = net_output['instance_loss'].sum()
-        iou = net_output['iou'].sum().item()/2  # the 2 is the gpu num
-        prediction_num = net_output['prediction_num'].sum().item()/batch_size
-        tp_num = net_output['TP_num'].sum().item()/batch_size
+        total_loss = net_output['total_loss'].mean()
+        instance_loss = net_output['instance_loss'].mean()
+        binary_loss = net_output['instance_loss'].mean()
+        iou = net_output['iou'].mean().item()/2  # the 2 is the gpu num
+        prediction_num = net_output['prediction_num'].mean().item()
+        tp_num = net_output['TP_num'].mean().item()
         total_loss.backward()
         optimizer.step()
         log_item = {'total_loss':total_loss.item(),'binary_loss':binary_loss.item(),'instance_loss':instance_loss.item(),'iou':iou,'prediction_num':prediction_num,'tp_num':tp_num}
@@ -75,15 +75,15 @@ def val(epoch):
         for batch_idx, batch in progressbar:
             image_data = Variable(batch[0]).type(torch.FloatTensor).to(device)
             binary_label = Variable(batch[1]).type(torch.LongTensor).to(device)
-            instance_label = Variable(batch[2]).type(torch.FloatTensor).to(device)
+            instance_label = Variable(batch[2]).type(torch.LongTensor).to(device)
 
             net_output = model([image_data, binary_label, instance_label])
             # we have to print the loss
             batch_size = len(batch[0])
-            total_loss += net_output['total_loss'].sum().item()
-            binary_loss += net_output['binary_loss'].sum().item()
-            instance_loss += net_output['instance_loss'].sum().item()
-            iou += net_output['iou'].sum().item()
+            total_loss += net_output['total_loss'].mean().item()
+            binary_loss += net_output['binary_loss'].mean().item()
+            instance_loss += net_output['instance_loss'].mean().item()
+            iou += net_output['iou'].mean().item()
             # when batch_idx=0,select the whole batch to show the binary map
             if batch_idx == 0:
                 # get the binary result and the instance result from gpu
@@ -99,10 +99,6 @@ def val(epoch):
                 binary = binary.permute(0, 3, 1, 2)
                 logger.add_image("binary_map", binary, epoch)
                 logger.add_image("instance_map", instance, epoch)
-        total_loss = total_loss/len(val_loader)
-        binary_loss = binary_loss/len(val_loader)
-        instance_loss = instance_loss/len(val_loader)
-        iou = iou/len(val_loader)
         print(f"total_loss:{total_loss} | binary_loss:{binary_loss} | instance_loss:{instance_loss} | iou:{iou}")
         logger.add_scalars("val",{'total_loss':total_loss,'binary_loss':binary_loss,'instance_loss':instance_loss,'iou':iou},step=epoch)
 
@@ -124,9 +120,11 @@ mean=(0.485, 0.456, 0.406)
 std=(0.229, 0.224, 0.225)
 transform_train = Compose(Resize((512,256)), Rotation(2),
                           ToTensor(), Normalize(mean=mean, std=std))
+# transform_train = Compose(Rotation(2),ToTensor())
 train_dataset = LaneDataset(train_dataset_file,transform_train)
 train_loader=DataLoader(train_dataset,batch_size = args.batch_size,shuffle = True)
 if args.val:
+    # transform_val = Compose(Rotation(2), ToTensor())
     transform_val = Compose(Resize((512,256)), ToTensor(),
                             Normalize(mean=mean, std=std))
     val_dataset = LaneDataset(val_dataset_file,transform_val)
@@ -137,11 +135,11 @@ model = Lanenet()
 model = torch.nn.DataParallel(model)
 model.to(device)
 optimizer = torch.optim.Adam(model.parameters(),lr=args.lr)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 start_epoch =0
 # if pretrained,we have to load param
 if args.pretrained:
-    if 'enet' in args.pretrained.lower():
+    if 'enet'==args.pretrained.lower():
         load_Enet_pretrained(model, args.pretrained)
     else:
         print("please waiting,loading the pretrained parameters")
@@ -149,9 +147,9 @@ if args.pretrained:
 # train
 print("All is prepared,be willing to train!")
 for epoch in range(start_epoch,args.epoch):
-    output = train(epoch)
+    train(epoch)
     scheduler.step()
-    if args.val:# and (epoch+1)%2==0:
-        val_iou = val(epoch)
+    if args.val:
+        val(epoch)
     if (epoch+1)%10==0:
         save_model(args.save,model,optimizer,epoch)

@@ -4,6 +4,7 @@ from tensorboardX import SummaryWriter
 from datetime import datetime
 import time
 from torchvision.utils import make_grid
+import numpy as np
 def save_model(save_path,model,optimizer,epoch):
     assert os.path.exists(save_path)
     save_name = os.path.join(save_path,f"lanenet_epoch_{epoch}.pth")
@@ -13,7 +14,7 @@ def save_model(save_path,model,optimizer,epoch):
         'optimzer_state_dict':optimizer.state_dict() if optimizer is not None else None
     },save_name)
     print(f"epoch{epoch+1}:the model is saved")
-def load_model(path,model,optimizer):
+def load_model(path,model,optimizer=None):
     assert os.path.exists(path)
     save_dict = torch.load(path)
     epoch = save_dict['epoch']+1
@@ -21,8 +22,8 @@ def load_model(path,model,optimizer):
         model.module.load_state_dict(save_dict['model_state_dict'])
     else:
         model.load_state_dict(save_dict['model_state_dict'])
-    if save_dict['optimzer_state_dict'] is not None:
-        optimizer.load_sate_dict(save_dict['optimzer_state_dict'])
+    # if save_dict['optimzer_state_dict'] is not None:
+    #     optimizer.load_sate_dict(save_dict['optimzer_state_dict'])
     return epoch
 
 def load_Enet_pretrained(model,filepath):
@@ -85,4 +86,10 @@ class Logger(object):
 
     def add_image(self,tag,tensor,step):
         tensor = make_grid(tensor,4)
-        self.writer.add_image(tag,tensor,step,dataformats='CHW')
+        to_num = tensor.numpy().astype(np.uint8)
+        self.writer.add_image(tag,to_num,step,dataformats='CHW')
+
+def polyLR(optimizer,epoch,lr,power):
+    lr = lr * pow((1-1.0*epoch/100),power)
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr

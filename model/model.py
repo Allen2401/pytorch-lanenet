@@ -1,6 +1,6 @@
 from __future__ import division
-from model.encoder2 import *
-from model.decoder2 import *
+from model.encoder import *
+from model.decoder import *
 import torch
 import torch.nn as nn
 from model.loss import *
@@ -14,38 +14,57 @@ class Lanenet(nn.Module):
         self.decoder = EnetDecoder(instance_depth)
 
     def forward(self,input):
-        forward_input = input[0]
-        binary_label = input[1]
-        instance_label = input[2]
+        if len(input)==3:
+            forward_input = input[0]
+            binary_label = input[1]
+            instance_label = input[2]
+        else:
+            forward_input = input[0]
         batch_size = forward_input.size(0)
         # encoder_result,indices = self.encoder(forward_input)
         # binary_result,instance_result = self.decoder(encoder_result,indices)
         encoder_result = self.encoder(forward_input)
-        binary_result,instance_result = self.decoder(* encoder_result)
+        binary_result,instance_result = self.decoder(*encoder_result)
+        binary_out = F.softmax(binary_result, dim=1)
+        # shape :N*h*w
+        binary_out = torch.argmax(binary_out, dim=1)
+        if len(input)!=3:
+            return {
+                   'binary_pred': binary_out,
+                   'instance_result': instance_result
+            }
         # after get the result ,we have to compute the loss
         binary_loss = weighted_cross_entropy_loss(binary_result, binary_label)
         # the instance branch loss
         instance_loss_fn = Discriminative_Loss(0.5, 1.5, 1.0, 1.0, 0.001)
         instance_loss = instance_loss_fn(instance_result, instance_label)
-        total_loss = binary_loss + instance_loss
+        # reg loss
+        reg_loss = torch.tensor(0.0).cuda()
+        for name,param in self.encoder.named_parameters():
+            if 'weight' in name:
+                l2_reg = torch.norm(param,p=2)
+                reg_loss = reg_loss + l2_reg
+        for name, param in self.decoder.named_parameters():
+            if 'weight' in name:
+                l2_reg = torch.norm(param, p=2)
+                reg_loss = reg_loss + l2_reg
+        total_loss = binary_loss + 1.5 * instance_loss + 0.001 * reg_loss
+         #+ 0.0005 * reg_loss
         # we can write a iou in there\
-        out = F.softmax(binary_result, dim=1)
-        # shape :N*h*w
-        out = torch.argmax(out, dim=1)
-        out_temp = out.reshape((batch_size,-1))
-        TP = torch.sum(out_temp*binary_label.reshape((batch_size,-1)),dim=1) # we get the the N个TP数目
-        prediction = torch.sum(out_temp,dim=1)
+        binary_out_plain = binary_out.reshape((batch_size,-1))
+        TP = torch.sum(binary_out_plain*binary_label.reshape((batch_size,-1)),dim=1) # we get the the N个TP数目
+        prediction = torch.sum(binary_out_plain,dim=1)
         label = torch.sum(binary_label.reshape((batch_size,-1)),dim=1)
         iou = torch.sum(TP * 1.0/(prediction+label-TP))/batch_size
         return {'binary_result':binary_result,
-                'binary_pred':out,
+                'binary_pred':binary_out,
                 'instance_result':instance_result,
                 'total_loss': total_loss,
                 'binary_loss': binary_loss,
                 'instance_loss': instance_loss,
                 'iou': iou,
-                'prediction_num':torch.sum(prediction),
-                'TP_num':torch.sum(TP)
+                'prediction_num':torch.mean(prediction*1.),
+                'TP_num':torch.mean(TP*1.)
         }
 
 

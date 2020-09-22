@@ -27,7 +27,7 @@ class Discriminative_Loss(_Loss):
         # print(unique_ids)
         instance_num = len(unique_labels)
         # print(instance_num)
-        input = input.reshape((height * width, feature_dim))
+        input =  input.reshape((feature_dim,height * width)).transpose(1,0)
         target = target.reshape((height, width))
         index = unique_ids.reshape((height * width, 1)).repeat(1, feature_dim)
         # print(input)
@@ -61,11 +61,11 @@ class Discriminative_Loss(_Loss):
         mu_diff_need = torch.masked_select(mu_diff, bool_mask).reshape((-1, feature_dim))  # get the 1D tensor
 
         mu_norm = torch.norm(mu_diff_need, dim=1)
-        mu_norm = torch.clamp(self.delta_dist - mu_norm, min=0)
+        mu_norm = torch.clamp(2 * self.delta_dist - mu_norm, min=0)
         mu_norm = torch.square(mu_norm)
         l_dist = torch.mean(mu_norm) *self.param_dist
         # step 3: calculate the l_reg
-        l_reg = torch.mean(torch.norm(mu, dim=1)) *self.param_reg
+        l_reg = torch.mean(torch.norm(mu, dim=1,p=1)) *self.param_reg
         # calculate loss
         loss = l_var + l_dist+ l_reg
         return loss,l_var, l_dist, l_reg
