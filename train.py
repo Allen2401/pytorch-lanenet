@@ -15,7 +15,7 @@ from utils.transforms import *
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", default="./data/training_data/training", help=" Dataset_path")
-    parser.add_argument("--save",required=False,default="./checkpoints",help="Directorty to save model checkpoint")
+    parser.add_argument("--save",required=False,default="./checkpoints/train_reg",help="Directorty to save model checkpoint")
     parser.add_argument("--log",required=False,default="./log",help="Directory to save the log")
     parser.add_argument("--val",required=False,type = bool,default=True)
     parser.add_argument("--epoch",required = False,type = int,default=100,help="Training epoches")

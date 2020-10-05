@@ -34,7 +34,8 @@ class Lanenet(nn.Module):
                    'instance_result': instance_result
             }
         # after get the result ,we have to compute the loss
-        binary_loss = weighted_cross_entropy_loss(binary_result, binary_label)
+        # binary_loss = weighted_cross_entropy_loss(binary_result, binary_label)
+        binary_loss = weighted_labelsmooth_loss(binary_result, binary_label)
         # the instance branch loss
         instance_loss_fn = Discriminative_Loss(0.5, 1.5, 1.0, 1.0, 0.001)
         instance_loss = instance_loss_fn(instance_result, instance_label)
@@ -50,7 +51,7 @@ class Lanenet(nn.Module):
                 reg_loss = reg_loss + l2_reg
         total_loss = binary_loss + 1.5 * instance_loss + 0.001 * reg_loss
          #+ 0.0005 * reg_loss
-        # we can write a iou in there\
+        # we can write a iou in there
         binary_out_plain = binary_out.reshape((batch_size,-1))
         TP = torch.sum(binary_out_plain*binary_label.reshape((batch_size,-1)),dim=1) # we get the the N个TP数目
         prediction = torch.sum(binary_out_plain,dim=1)
